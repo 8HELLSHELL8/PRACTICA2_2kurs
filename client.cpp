@@ -1,94 +1,98 @@
 #include <iostream>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <unistd.h>
-#include <cstring>
 #include <string>
+#include <stdexcept>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 
 using namespace std;
 
-int createClientSocket()
-{
-    int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (socket_fd == -1)
-    {
-        cout << "Ошибка создания сокета клиента!" << endl;
-        exit(-1);
-    }
-    return socket_fd;
-}
+const int SERVER_PORT = 7432;
+const string SERVER_IP = "127.0.0.1"; // IP сервера, который нужно использовать для подключения
 
-sockaddr_in defineServer()
+// Функция для подключения к серверу, отправки запроса и получения ответа
+void connectToServerAndSendRequest(const string& request) 
 {
+    int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (clientSocket == -1) 
+    {
+        cerr << "Error creating client socket!" << endl;
+        return;
+    }
+
     sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(7432);
-    serverAddress.sin_addr.s_addr = INADDR_ANY;
-    return serverAddress;
-}
+    serverAddress.sin_port = htons(SERVER_PORT);
+    inet_pton(AF_INET, SERVER_IP.c_str(), &serverAddress.sin_addr);
 
-void sendToServer(const string& clientMessage, int clientSocket)
-{
-    const char* message = clientMessage.c_str();
-    send(clientSocket, message, strlen(message), 0);
-}
-
-void clientMenu()
-{
-    int clientSocket = createClientSocket(); // Создаем клиентский сокет
-
-    sockaddr_in serverAddress = defineServer(); // Определяем адрес сервера
-     
-    if (connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) // Подключаемся к серверу
+    if (connect(clientSocket, (sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) 
     {
-        cout << "Подключение к серверу не установлено!" << endl;
+        cerr << "Error connecting to server!" << endl;
         close(clientSocket);
-        exit(-1);
+        return;
     }
+
+    // Отправляем запрос на сервер
+    send(clientSocket, request.c_str(), request.size(), 0);
+
+    // Получаем ответ от сервера
+    char buffer[1024];
+    int bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
+    if (bytesReceived > 0) 
+    {
+        buffer[bytesReceived] = '\0';
+        cout << "Server response: " << endl << buffer;
+    } 
     else 
     {
-        cout << "Подключение установлено успешно!" << endl;
+        cout << "No response from server." << endl;
     }
 
-    // Основной цикл работы клиента
-    while (true)
-    {
-        cout << "\n<------------------------------->" << endl;
-        cout << "Добро пожаловать в базу данных!" << endl;
-        cout << "<------------------------------->" << endl;
-        cout << "Выберите операцию:" << endl;
-        cout << "1. Ввести запрос к базе данных (команда: use)" << endl;
-        cout << "2. Выйти из клиента (команда: exit)" << endl;
-        cout << "<------------------------------->" << endl;
-
-        string input;
-        cout << "Введите команду: ";
-        getline(cin, input);
-
-        if (input == "exit" || input == "EXIT") 
-        {
-            cout << "Завершение работы клиента!" << endl;
-            break;
-        }
-        else if (input == "use" || input == "USE")
-        {
-            string userInput;
-            cout << "Input your query: ";
-            getline(cin, userInput);
-            sendToServer(userInput, clientSocket);
-            cout << "Query sent to server" << endl;
-        }
-        else 
-        {
-            cout << "Error: wrong operation!" << endl;
-        }
-    }
-
-    close(clientSocket);
-    cout << "Client disconnected" << endl;
+    close(clientSocket); // Закрываем клиентский сокет после отправки запроса
 }
 
-int main()
+// Функция для отображения меню
+void displayMenu() 
+{
+    cout << "\n==== Client Menu ====" << endl;
+    cout << "1. Use - Connect to server and send a query" << endl;
+    cout << "2. Exit - Close the client" << endl;
+    cout << "=====================" << endl;
+}
+
+void clientMenu() 
+{
+
+    while (true) 
+    {
+        displayMenu();
+        
+        cout << "Select an option: ";
+        string choice;
+        getline(cin, choice);
+
+        if (choice == "1") 
+        {
+            cout << "Enter your query: ";
+            string query;
+            getline(cin, query);
+
+            // Подключение к серверу и отправка запроса
+            connectToServerAndSendRequest(query);
+        } 
+        else if (choice == "2") 
+        {
+            cout << "Exiting client..." << endl;
+            break;
+        } 
+        else 
+        {
+            cout << "Invalid option. Please select 1 or 2." << endl;
+        }
+    }
+}
+
+int main() 
 {
     clientMenu();
     return 0;

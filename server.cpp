@@ -639,7 +639,7 @@ bool checkCondition(string table1Name, HASHtable<string> row1,
 
 }
 
-void handleSELECT(LinkedList<string> inputList)
+void handleSELECT(LinkedList<string> inputList, int clientSocket)
  {
     lock_guard<mutex> selectionMUTEX(selectMutex);
     LinkedList<string> selectedColumns = getSelectedTablesSELECT(inputList);
@@ -685,8 +685,9 @@ void handleSELECT(LinkedList<string> inputList)
                 HASHtable<string> currentRowSecond = table2.get(j);
                 if (checkCondition(selectedTables.get(0),currentRowFirst, selectedTables.get(1), currentRowSecond, conditions, operators))
                 {
-                    cout << table1.get(i).HGET(divideAndGetColumn(selectedColumns.get(0))) << " " 
-                    <<  table2.get(j).HGET(divideAndGetColumn(selectedColumns.get(1))) << endl;
+                    string outputForClient = table1.get(i).HGET(divideAndGetColumn(selectedColumns.get(0))) + " " 
+                    + table2.get(j).HGET(divideAndGetColumn(selectedColumns.get(1))) + '\n';
+                    send(clientSocket, outputForClient.c_str(), outputForClient.size(), 0);
                 }
 
             }
@@ -791,10 +792,9 @@ void handleDELETE(LinkedList<string> inputList)
     unlockTable(tableName);
 }
 
-void MENU(auto clientInput)
+void MENU(auto clientInput, auto clientSocket)
 {
-    while (true)
-    {
+    
     LinkedList<string> inputList = parseCommand(clientInput);
     inputList.print();
     string operation = inputList.get(0);
@@ -807,7 +807,7 @@ void MENU(auto clientInput)
 
     if (operation == "SELECT")
     {
-        handleSELECT(inputList);
+        handleSELECT(inputList, clientSocket);
     }
     else if (operation == "DELETE")
     {
@@ -821,7 +821,6 @@ void MENU(auto clientInput)
     {
         throw runtime_error("Wrong operation called!");
     }    
-    }
 }
 
 
@@ -835,51 +834,51 @@ sockaddr_in defineServer()
     return serverAddress;
 }
 
-
-void handleClient(int clientSocket) {
+void handleClient(int clientSocket)
+{
     char buffer[1024];
     
-    while (true) { 
-        int bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
-        if (bytesReceived <= 0) {
-            break; 
-        }
-        
-        buffer[bytesReceived] = '\0';  
+    int bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
+    if (bytesReceived > 0) {
+        buffer[bytesReceived] = '\0';
         {
             lock_guard<mutex> lock(mtx);
-            cout << "Recived message: " << buffer << std::endl;
+            cout << "Received message: " << buffer << endl;
         }
 
-        MENU(buffer);
+        MENU(buffer, clientSocket);
     }
 
     {
         lock_guard<mutex> lock(mtx);
-        cout << "Client offline." << std::endl;
+        cout << "Client disconnected." << endl;
     }
-    close(clientSocket); // Закрываем клиентский сокет после завершения общения
+    close(clientSocket); // Закрываем клиентский сокет после обработки одного запроса
 }
-
 
 void serverListener(int serverSocket)
 {
     sockaddr_in clientAddress;
     socklen_t clientAddressSize = sizeof(clientAddress);
 
-    int clientSocket = accept(serverSocket,(sockaddr*)&clientAddress, &clientAddressSize);
-    if (clientSocket == -1)
+    while (true)
     {
-        cerr << "Error appeared while connecting to server!";
+        int clientSocket = accept(serverSocket, (sockaddr*)&clientAddress, &clientAddressSize);
+        if (clientSocket == -1)
+        {
+            cerr << "Error occurred while connecting to client!" << endl;
+            continue;
+        }
+
+        {
+            lock_guard<mutex> lg(mtx);
+            cout << "Client connected!" << endl;
+        }
+
+        // Создаем поток для каждого клиента, чтобы обеспечить многопоточность
+        thread clientThread(handleClient, clientSocket);
+        clientThread.detach(); // Отсоединяем поток для независимой обработки клиента
     }
-    else
-    {
-        lock_guard<mutex> lg(mtx);
-        cout << "Client connected!" << endl;
-    }
-    
-    thread clientsThread(handleClient, clientSocket);
-    clientsThread.detach();
 }
 
 void serverHandling()
@@ -887,10 +886,9 @@ void serverHandling()
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket == -1)
     {
-        cout << "Server socket creation is failed!";
+        cout << "Server socket creation failed!";
         exit(-1);
     }
-
 
     sockaddr_in serverAddress = defineServer();
     if (bind(serverSocket, (sockaddr*)&serverAddress, sizeof(serverAddress)) == -1)
@@ -900,20 +898,9 @@ void serverHandling()
     }
 
     listen(serverSocket, 5);
-    cout << "Server started and listening to port 7432" << endl;
+    cout << "Server started and listening on port 7432" << endl;
 
-    while(true)
-    {
-        string input;
-        getline(cin, input);
-        if (input == "EXIT" || input == "exit")
-        {
-            cout << "SERVER STOPPED!" << endl;
-            exit(1);
-        }
-        serverListener(serverSocket);
-    }
-
+    serverListener(serverSocket); // Запускаем обработчик входящих подключений
 
     close(serverSocket);
 }
@@ -923,7 +910,7 @@ int main()
 {
     setlocale(LC_ALL, "RU");
     createDataBase();
-    // MENU();
+
     serverHandling();
 
 
