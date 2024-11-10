@@ -5,6 +5,12 @@
 #include <cmath>
 #include <string>
 
+//FOR SERVER
+#include <sys/socket.h>
+#include <unistd.h>
+#include <netinet/in.h>
+#include <cstring>
+
 //FOR using files in system
 #include <filesystem>
 
@@ -770,7 +776,6 @@ void handleDELETE(LinkedList<string> inputList)
     unlockTable(tableName);
 }
 
-
 void MENU()
 {
     while (true)
@@ -808,11 +813,53 @@ void MENU()
 }
 
 
+
+
+
+
+void serverHandling()
+{
+    int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSocket == -1)
+    {
+        cout << "Server socket creation is failed!";
+        exit(-1);
+    }
+
+
+    sockaddr_in serverAddress;
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(7432);
+    serverAddress.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(serverSocket, (sockaddr*)&serverAddress, sizeof(serverAddress)) == -1)
+    {
+        cout << "Error binding socket";
+        exit(-1);
+    }
+
+    listen(serverSocket, 5);
+
+    char buffer[1024] = {0};
+    int clientSocket = accept(serverSocket, nullptr, nullptr);
+    recv(clientSocket, buffer, sizeof(buffer), 0);
+    cout << "Message from client is: " << buffer << endl;
+
+
+    close(serverSocket);
+}
+
+
 int main()
 {
-    setlocale(LC_ALL, "RU");
-    createDataBase();
-    MENU();
+    // setlocale(LC_ALL, "RU");
+    // createDataBase();
+    // MENU();
+
+
+
+
+
 
     return 0;
 }
