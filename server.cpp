@@ -11,6 +11,10 @@
 #include <netinet/in.h>
 #include <cstring>
 
+//FOR multitreading
+#include <thread>
+#include <mutex>
+
 //FOR using files in system
 #include <filesystem>
 
@@ -816,6 +820,66 @@ void MENU()
 
 
 
+mutex mtx;
+
+sockaddr_in defineServer()
+{
+    sockaddr_in serverAddress;
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(7432);
+    serverAddress.sin_addr.s_addr = INADDR_ANY;
+    return serverAddress;
+}
+
+
+void handleClient(int clientSocket) {
+    char buffer[1024];
+    
+    while (true) { 
+        int bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
+        if (bytesReceived <= 0) {
+            break; 
+        }
+        
+        buffer[bytesReceived] = '\0';  
+        {
+            lock_guard<mutex> lock(mtx);
+            cout << "Recived message: " << buffer << std::endl;
+        }
+
+    
+        string response = "Server got you message: ";
+        response += buffer;
+        send(clientSocket, response.c_str(), response.size(), 0);
+    }
+
+    {
+        lock_guard<mutex> lock(mtx);
+        cout << "Client offline." << std::endl;
+    }
+    close(clientSocket); // Закрываем клиентский сокет после завершения общения
+}
+
+
+void serverListener(int serverSocket)
+{
+    sockaddr_in clientAddress;
+    socklen_t clientAddressSize = sizeof(clientAddress);
+
+    int clientSocket = accept(serverSocket,(sockaddr*)&clientAddress, &clientAddressSize);
+    if (clientSocket == -1)
+    {
+        cerr << "Error appeared while connecting to server!";
+    }
+    else
+    {
+        lock_guard<mutex> lg(mtx);
+        cout << "Client connected!" << endl;
+    }
+    
+    thread clientsThread(handleClient, clientSocket);
+    clientsThread.detach();
+}
 
 void serverHandling()
 {
@@ -827,11 +891,7 @@ void serverHandling()
     }
 
 
-    sockaddr_in serverAddress;
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(7432);
-    serverAddress.sin_addr.s_addr = INADDR_ANY;
-
+    sockaddr_in serverAddress = defineServer();
     if (bind(serverSocket, (sockaddr*)&serverAddress, sizeof(serverAddress)) == -1)
     {
         cout << "Error binding socket";
@@ -839,11 +899,19 @@ void serverHandling()
     }
 
     listen(serverSocket, 5);
+    cout << "Server started and listening to port 7432" << endl;
 
-    char buffer[1024] = {0};
-    int clientSocket = accept(serverSocket, nullptr, nullptr);
-    recv(clientSocket, buffer, sizeof(buffer), 0);
-    cout << "Message from client is: " << buffer << endl;
+    while(true)
+    {
+        string input;
+        getline(cin, input);
+        if (input == "EXIT" || input == "exit")
+        {
+            cout << "SERVER STOPPED!" << endl;
+            exit(1);
+        }
+        serverListener(serverSocket);
+    }
 
 
     close(serverSocket);
@@ -855,7 +923,7 @@ int main()
     // setlocale(LC_ALL, "RU");
     // createDataBase();
     // MENU();
-
+    serverHandling();
 
 
 

@@ -52,18 +52,16 @@ void clientMenu()
         cout << "Welcome to database!" << endl;
         cout <<"<------------------------------->" << endl;
         cout << "Choose operation: " << endl;
-        cout << "Input query to database: 1" << endl;
-        cout << "Exit client: 0" << endl;
+        cout << "Input query to database: use" << endl;
+        cout << "Exit client: exit" << endl;
         
-        switch (stoi(input))
-        {
-        case 0:
+        if (input == "exit" || input == "EXIT") 
         {
             cout << "Exiting client!" << endl;
             close(clientSocket);
             exit(-1);
         }
-        case 1:
+        else if (input == "use" || "USE")
         {
             string userInput;
             cout << "Enter your query: ";
@@ -71,10 +69,11 @@ void clientMenu()
             sendToServer(userInput, clientSocket);
             break;
         }
-        default:
+        else 
+        {
             cout << "Wrong operation chosen!" << endl;
-            break;
         }
+
     }    
 }
 
