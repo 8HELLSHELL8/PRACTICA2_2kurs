@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <cstring>
 #include <string>
+
 using namespace std;
 
 int createClientSocket()
@@ -11,7 +12,7 @@ int createClientSocket()
     int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_fd == -1)
     {
-        cout << "client`s socket creation is failed!";
+        cout << "Ошибка создания сокета клиента!" << endl;
         exit(-1);
     }
     return socket_fd;
@@ -26,7 +27,7 @@ sockaddr_in defineServer()
     return serverAddress;
 }
 
-void sendToServer(string clientMessage, int clientSocket)
+void sendToServer(const string& clientMessage, int clientSocket)
 {
     const char* message = clientMessage.c_str();
     send(clientSocket, message, strlen(message), 0);
@@ -34,54 +35,61 @@ void sendToServer(string clientMessage, int clientSocket)
 
 void clientMenu()
 {
+    int clientSocket = createClientSocket(); // Создаем клиентский сокет
 
-    int clientSocket = createClientSocket(); //CREATING CLIENT`S SOCKET 
-
-    sockaddr_in serverAddress = defineServer(); //DEFINING SERVER`S ADDRESS 
+    sockaddr_in serverAddress = defineServer(); // Определяем адрес сервера
      
-    if (connect(clientSocket,(struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) //CONNECTING TO THE SERVER
+    if (connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) // Подключаемся к серверу
     {
-        cout << "Connection to the server wasn`t established!" << endl;
+        cout << "Подключение к серверу не установлено!" << endl;
+        close(clientSocket);
         exit(-1);
     }
-    else cout << "Connection established properly!" << endl;
+    else 
+    {
+        cout << "Подключение установлено успешно!" << endl;
+    }
 
+    // Основной цикл работы клиента
     while (true)
     {
+        cout << "\n<------------------------------->" << endl;
+        cout << "Добро пожаловать в базу данных!" << endl;
+        cout << "<------------------------------->" << endl;
+        cout << "Выберите операцию:" << endl;
+        cout << "1. Ввести запрос к базе данных (команда: use)" << endl;
+        cout << "2. Выйти из клиента (команда: exit)" << endl;
+        cout << "<------------------------------->" << endl;
+
         string input;
-        cout << "Welcome to database!" << endl;
-        cout <<"<------------------------------->" << endl;
-        cout << "Choose operation: " << endl;
-        cout << "Input query to database: use" << endl;
-        cout << "Exit client: exit" << endl;
-        
+        cout << "Введите команду: ";
+        getline(cin, input);
+
         if (input == "exit" || input == "EXIT") 
         {
-            cout << "Exiting client!" << endl;
-            close(clientSocket);
-            exit(-1);
+            cout << "Завершение работы клиента!" << endl;
+            break;
         }
-        else if (input == "use" || "USE")
+        else if (input == "use" || input == "USE")
         {
             string userInput;
-            cout << "Enter your query: ";
+            cout << "Input your query: ";
             getline(cin, userInput);
             sendToServer(userInput, clientSocket);
-            break;
+            cout << "Query sent to server" << endl;
         }
         else 
         {
-            cout << "Wrong operation chosen!" << endl;
+            cout << "Error: wrong operation!" << endl;
         }
+    }
 
-    }    
+    close(clientSocket);
+    cout << "Client disconnected" << endl;
 }
-
 
 int main()
 {
-
     clientMenu();
-
     return 0;
 }

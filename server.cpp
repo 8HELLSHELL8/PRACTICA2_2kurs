@@ -28,6 +28,13 @@
 
 using namespace std;
 
+mutex mtx;
+mutex delMutex;
+mutex insertMutex;
+mutex selectMutex;
+
+
+
 string getLastFolderName(const string& path) {
 
     size_t lastSlashPos = path.rfind('/');
@@ -234,6 +241,7 @@ int getPKSEQ(string tableName)
     ifstream PKSEQ(pathToDir + "/" + tableName + "_pk_sequence"); //Opening line counter
     if (!PKSEQ.is_open())
     {
+        cout << pathToDir + "/" + tableName + "_pk_sequence";
         throw runtime_error("Error opening pk_sequence and reading it");
     }
     getline(PKSEQ, fileInput);
@@ -379,6 +387,7 @@ void uploadTable(LinkedList<HASHtable<string>> table, string tableName)
 
 void insert(LinkedList<string> values, string tableName)
 {
+    lock_guard<mutex> insertionMUTEX(insertMutex);
     lockTable(tableName);
     LinkedList<HASHtable<string>> table = readTable(tableName);
     
@@ -632,6 +641,7 @@ bool checkCondition(string table1Name, HASHtable<string> row1,
 
 void handleSELECT(LinkedList<string> inputList)
  {
+    lock_guard<mutex> selectionMUTEX(selectMutex);
     LinkedList<string> selectedColumns = getSelectedTablesSELECT(inputList);
     LinkedList<string> selectedTables = getSelectedTablesFROM(inputList);
 
@@ -727,6 +737,7 @@ bool checkCondition(string table1Name, HASHtable<string> row1,
 
 void handleDELETE(LinkedList<string> inputList)
 {
+    lock_guard<mutex> deletionMUTEX(delMutex);
     LinkedList<string> selectedTables = getSelectedTablesFROM(inputList);
     string tableName = selectedTables.get(0);
     LinkedList<HASHtable<string>> table = readTable(tableName);
@@ -780,23 +791,20 @@ void handleDELETE(LinkedList<string> inputList)
     unlockTable(tableName);
 }
 
-void MENU()
+void MENU(auto clientInput)
 {
     while (true)
     {
-    //system("clear");
-    cout << "Enter your query: ";
-    string userInput;
-    getline(cin, userInput);
-
-    if (userInput == "EXIT" || userInput == "exit")
-    {
-        exit(0);
-    }
-
-    LinkedList<string> inputList = parseCommand(userInput);
+    LinkedList<string> inputList = parseCommand(clientInput);
+    inputList.print();
     string operation = inputList.get(0);
     
+    if (operation == "exit" || operation == "EXIT")
+    {
+        cout << "Waiting for next query" << endl;
+        return;
+    }
+
     if (operation == "SELECT")
     {
         handleSELECT(inputList);
@@ -817,10 +825,6 @@ void MENU()
 }
 
 
-
-
-
-mutex mtx;
 
 sockaddr_in defineServer()
 {
@@ -847,10 +851,7 @@ void handleClient(int clientSocket) {
             cout << "Recived message: " << buffer << std::endl;
         }
 
-    
-        string response = "Server got you message: ";
-        response += buffer;
-        send(clientSocket, response.c_str(), response.size(), 0);
+        MENU(buffer);
     }
 
     {
@@ -920,8 +921,8 @@ void serverHandling()
 
 int main()
 {
-    // setlocale(LC_ALL, "RU");
-    // createDataBase();
+    setlocale(LC_ALL, "RU");
+    createDataBase();
     // MENU();
     serverHandling();
 
