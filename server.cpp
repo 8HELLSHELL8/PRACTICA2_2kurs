@@ -29,6 +29,7 @@
 using namespace std;
 
 mutex mtx;
+mutex menu_mtx;
 mutex delMutex;
 mutex insertMutex;
 mutex selectMutex;
@@ -794,33 +795,43 @@ void handleDELETE(LinkedList<string> inputList)
 
 void MENU(auto clientInput, auto clientSocket)
 {
-    
-    LinkedList<string> inputList = parseCommand(clientInput);
-    inputList.print();
-    string operation = inputList.get(0);
-    
-    if (operation == "exit" || operation == "EXIT")
-    {
-        cout << "Waiting for next query" << endl;
-        return;
-    }
+    try
+    {   
+        LinkedList<string> inputList = parseCommand(clientInput);
+        inputList.print();
+        string operation = inputList.get(0);
+        
+        if (operation == "exit" || operation == "EXIT")
+        {
+            cout << "Waiting for next query" << endl;
+            return;
+        }
 
-    if (operation == "SELECT")
-    {
-        handleSELECT(inputList, clientSocket);
+        if (operation == "SELECT")
+        {
+            handleSELECT(inputList, clientSocket);
+        }
+        else if (operation == "DELETE")
+        {
+            handleDELETE(inputList);
+        }
+        else if (operation == "INSERT")
+        {
+            handleINPUT(inputList);
+        }
+        else
+        {
+            throw runtime_error("Wrong operation called!");
+        }    
     }
-    else if (operation == "DELETE")
+    catch (const runtime_error& e)
     {
-        handleDELETE(inputList);
+        lock_guard<mutex> lock(menu_mtx);
+        cerr << "ERROR: " << e.what() << endl;
+        string errorMessage = "ERROR: " + string(e.what());
+        send(clientSocket, errorMessage.c_str(), errorMessage.size(), 0);
+
     }
-    else if (operation == "INSERT")
-    {
-        handleINPUT(inputList);
-    }
-    else
-    {
-        throw runtime_error("Wrong operation called!");
-    }    
 }
 
 
@@ -846,7 +857,16 @@ void handleClient(int clientSocket)
             cout << "Received message: " << buffer << endl;
         }
 
-        MENU(buffer, clientSocket);
+
+        try
+        {
+            MENU(buffer, clientSocket);
+        }
+        catch (const exception& e)
+        {
+            cerr << "Error in client handling: " << e.what() << endl;
+        }
+        
     }
 
     {
